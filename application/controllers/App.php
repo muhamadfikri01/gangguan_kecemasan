@@ -141,7 +141,6 @@ class App extends CI_Controller {
 			if($this->auth->login($data)) {
 				$this->session->set_flashdata('pesan', '<div class="alert alert-success" role="alert">Login Berhasil</div>');
 
-				var_dump($this->session->userdata()); die;
 				redirect('app/index');
 			} else {
 				$this->session->set_flashdata('pesan', '<div class="alert alert-danger" role="alert">Login Gagal</div>');
@@ -179,7 +178,48 @@ class App extends CI_Controller {
 				];
 
 				$this->session->set_userdata($user_data);
-				$data['pertanyaan'] = $this->crud->get_pertanyaan();
+				
+				$pertanyaan = [];
+				$temp_pertanyaan = $this->crud->get_pertanyaan();
+				
+				foreach($temp_pertanyaan as $hasil) {
+					// print_r($hasil);
+					// echo "<br>";
+					$temp = [
+						'id' => $hasil['id'],
+						'skor' => $hasil['skor'],
+						'nama_gejala' => $hasil['nama_gejala'],
+						'penyakit_id' => strval($hasil['penyakit_id'])
+					];
+
+					if(!array_key_exists($hasil['id'], $pertanyaan)) {
+						$pertanyaan[$hasil['id']] = $temp;
+					} else {
+						$pertanyaan[$hasil['id']]['penyakit_id'] .= '&' . strval($hasil['penyakit_id']);
+					}
+				}
+
+				$data['pertanyaan'] = $pertanyaan;
+
+				// echo "<br>";
+				// foreach($pertanyaan as $p) {
+				// 	print_r($p);
+				// 	echo "<br>";
+
+				// 	// if(strpos($p['penyakit_id'], '&') !== false) {
+				// 	// 	$temp = explode('&', $p['penyakit_id']);
+				// 	// 	foreach($temp as $t) {
+				// 	// 		echo $t;
+				// 	// 		echo "<br>";
+				// 	// 	}
+	
+				// 	// 	die;
+				// 	// } else {
+				// 	// 	echo $p;
+				// 	// }
+				// }
+				
+				// die;
 
 				$url_page = "app/konsultasi/gejala";
 			break;
@@ -190,31 +230,60 @@ class App extends CI_Controller {
 				$inserted_kategori = []; // kategori penyakit
 
 				foreach($get_hasil as $kunci => $dt) {
+					if(strpos($kunci, '-') == false) {
+						continue;
+					}
 
 					$temp = explode('-', $kunci);
+					// echo $perulangan_ke++;
+					// echo "<br>";
+					// // var_dump($temp[3]); die;
 					$id = (int) $temp[1];
 					$skor = $temp[2]; // nilai cf pakar
-					$penyakit_id = (int) $temp[3];
+					$penyakit_id = $temp[3];
 					$skor = (float) str_replace('_', '.', $skor);
 					$bobot = (float) $dt;
 
 					if($bobot != 0)
 						$bobot = (float) $bobot / 5;
-
-					if(!in_array($penyakit_id, $inserted_kategori)) {
-						$kombinasi = $skor * $bobot;
-
-						array_push($inserted_kategori, $penyakit_id);
-						// array_push($past_kategori, [$penyakit_id => $kombinasi]);
-						$past_kategori[$penyakit_id] = $kombinasi;
+					
+					if(strpos($penyakit_id, '&') !== false) {
+						$penyakit_ids = explode('&', $penyakit_id);
+						foreach($penyakit_ids as $pi) {
+							$pi = (int) $pi;
+							if(!in_array($pi, $inserted_kategori)) {
+								$kombinasi = $skor * $bobot;
+		
+								array_push($inserted_kategori, $pi);
+								// array_push($past_kategori, [$pi => $kombinasi]);
+								$past_kategori[$pi] = $kombinasi;
+							} else {
+								$kombinasi = $skor * $bobot;
+		
+								$last_kombinasi = $past_kategori[$pi] ;
+		
+								$new_kombinasi = $kombinasi + $last_kombinasi - ($kombinasi * $last_kombinasi);
+		
+								$past_kategori[$pi] = $new_kombinasi;
+							}
+						}
 					} else {
-						$kombinasi = $skor * $bobot;
-
-						$last_kombinasi = $past_kategori[$penyakit_id] ;
-
-						$new_kombinasi = $kombinasi + $last_kombinasi - ($kombinasi * $last_kombinasi);
-
-						$past_kategori[$penyakit_id] = $new_kombinasi;
+						$penyakit_id = (int) $penyakit_id;
+						if(!in_array($penyakit_id, $inserted_kategori)) {
+							$kombinasi = $skor * $bobot;
+	
+							array_push($inserted_kategori, $penyakit_id);
+							// array_push($past_kategori, [$penyakit_id => $kombinasi]);
+							$past_kategori[$penyakit_id] = $kombinasi;
+						} else {
+							$kombinasi = $skor * $bobot;
+	
+							$last_kombinasi = $past_kategori[$penyakit_id] ;
+	
+							$new_kombinasi = $kombinasi + $last_kombinasi - ($kombinasi * $last_kombinasi);
+	
+							$past_kategori[$penyakit_id] = $new_kombinasi;
+						}
 					}
 
 					// array_push($jawaban, [$penyakit_id => ['gejala_id' => $id ,'skor' => $skor ,'nilai' => $data]]);
